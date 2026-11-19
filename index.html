@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VTU Result Analyzer & Department Performance Portal</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js for data visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- PapaParse for CSV parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- SheetJS (XLSX) for Excel parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
+
+  <!-- Top Navigation Bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs no-print">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        
+        <!-- Logo & Title -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-700 to-indigo-500 flex items-center justify-center text-white font-black text-xl shadow-md shadow-indigo-200">
+            VTU
+          </div>
+          <div>
+            <h1 class="text-lg font-bold text-slate-900 tracking-tight leading-tight">
+              VTU Result Sheet Analyzer
+            </h1>
+            <p class="text-xs text-slate-500 font-medium">Department Rank, Class Breakdown & Failure Analytics</p>
+          </div>
+        </div>
+
+        <!-- Controls & Switchers -->
+        <div class="flex items-center gap-2 sm:gap-3">
+          
+          <!-- Sample Dataset Switcher -->
+          <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
+            <span class="text-slate-500 font-medium pl-2 hidden md:inline">Dataset:</span>
+            <select id="dataset-select" class="bg-white border border-slate-300 rounded px-2.5 py-1 font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer">
+              <option value="cse7">7th Sem CSE (2021-25)</option>
+              <option value="ise5">5th Sem ISE (2022-26)</option>
+            </select>
+          </div>
+
+          <!-- Add / Check Student Rank Button (High Priority) -->
+          <button id="btn-open-add-student" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm hover:shadow transition">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+            <span>Add / Check My Rank</span>
+          </button>
+
+          <!-- Upload Result Sheet Modal Trigger -->
+          <button id="btn-quick-upload" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs border border-indigo-200 transition-colors shadow-2xs">
+            <i data-lucide="upload" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">Upload Sheet</span>
+          </button>
+
+          <!-- Print / Export Report Button -->
+          <button id="btn-print-report" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-sm transition-all hover:shadow-md">
+            <i data-lucide="printer" class="w-4 h-4"></i>
+            <span class="hidden md:inline">Print Report</span>
+          </button>
+
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Celebration & Rank Notification Banner (Shows when student is added/analyzed) -->
+    <div id="rank-celebration-banner" class="hidden bg-gradient-to-r from-amber-500 via-emerald-600 to-indigo-600 p-0.5 rounded-2xl shadow-xl transition-all duration-300 animate-in fade-in">
+      <div class="bg-white p-5 rounded-[15px] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-700 border border-amber-300 flex items-center justify-center text-2xl shrink-0" id="celebration-icon">
+            🏆
+          </div>
+          <div>
+            <div class="flex items-center gap-2 mb-0.5">
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider" id="celebration-badge">
+                Rank Achieved
+              </span>
+              <span class="text-xs text-slate-500 font-medium" id="celebration-class">First Class with Distinction</span>
+            </div>
+            <h3 class="text-lg font-black text-slate-900" id="celebration-title">
+              Congratulations! You are placed in the Department Toppers!
+            </h3>
+            <p class="text-xs text-slate-600" id="celebration-desc">
+              Student analyzed and inserted into the live department rank table.
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 w-full md:w-auto">
+          <button id="btn-view-ranked-topper" class="flex-1 md:flex-initial px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition">
+            View in Toppers List
+          </button>
+          <button onclick="document.getElementById('rank-celebration-banner').classList.add('hidden')" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition">
+            Dismiss
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Official College & Department Header Banner -->
+    <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-6 sm:p-8 shadow-lg relative overflow-hidden">
+      <div class="absolute -right-8 -bottom-8 w-64 h-64 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none"></div>
+      <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 mb-3">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="header-scheme">VTU CBCS Scheme</span>
+          </div>
+          <h2 id="header-college" class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white mb-1">
+            Visvesvaraya Institute of Technology
+          </h2>
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-300 text-sm">
+            <span class="font-semibold text-indigo-300" id="header-dept">Department of Computer Science & Engineering</span>
+            <span>•</span>
+            <span id="header-sem">7th Semester</span>
+          </div>
+        </div>
+
+        <!-- Quick Action Buttons -->
+        <div class="flex flex-wrap gap-2 no-print">
+          <button id="btn-hero-check-rank" class="px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold shadow-md transition flex items-center gap-1.5">
+            <i data-lucide="user-plus" class="w-4 h-4"></i>
+            <span>Add Student & Check Rank</span>
+          </button>
+          <button id="btn-export-toppers-csv" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm transition border border-white/10 flex items-center gap-1.5">
+            <i data-lucide="award" class="w-4 h-4 text-amber-400"></i>
+            Export Toppers
+          </button>
+          <button id="btn-export-all-csv" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm transition border border-white/10 flex items-center gap-1.5">
+            <i data-lucide="download" class="w-4 h-4 text-indigo-300"></i>
+            Export Ledger
+          </button>
+          <button id="btn-export-remedial-csv" class="px-3 py-2 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-semibold backdrop-blur-sm transition border border-rose-500/30 flex items-center gap-1.5">
+            <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-400"></i>
+            Backlog List
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Executive KPI Summary Cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+      
+      <!-- Total Appeared -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-medium uppercase tracking-wider text-slate-500">Appeared</span>
+          <i data-lucide="users" class="w-4 h-4 text-slate-400"></i>
+        </div>
+        <div class="text-2xl font-black text-slate-900" id="kpi-total">--</div>
+        <div class="text-xs text-slate-500 font-medium mt-1">Total registered</div>
+      </div>
+
+      <!-- Passed & Pass Rate -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-medium uppercase tracking-wider text-emerald-600">Pass Rate</span>
+          <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>
+        </div>
+        <div class="text-2xl font-black text-emerald-600" id="kpi-pass-pct">--%</div>
+        <div class="text-xs text-emerald-700 font-medium mt-1" id="kpi-passed-count">-- Passed</div>
+      </div>
+
+      <!-- Distinction (FCD) -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-medium uppercase tracking-wider text-indigo-600">Distinction</span>
+          <i data-lucide="sparkles" class="w-4 h-4 text-indigo-500"></i>
+        </div>
+        <div class="text-2xl font-black text-indigo-600" id="kpi-fcd-count">--</div>
+        <div class="text-xs text-indigo-600 font-medium mt-1" id="kpi-fcd-pct">FCD (≥7.75)</div>
+      </div>
+
+      <!-- First Class (FC) -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-medium uppercase tracking-wider text-blue-600">First Class</span>
+          <i data-lucide="graduation-cap" class="w-4 h-4 text-blue-500"></i>
+        </div>
+        <div class="text-2xl font-black text-blue-600" id="kpi-fc-count">--</div>
+        <div class="text-xs text-blue-600 font-medium mt-1" id="kpi-fc-pct">FC (6.75 - 7.74)</div>
+      </div>
+
+      <!-- Second Class (SC) -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-medium uppercase tracking-wider text-amber-600">Second Class</span>
+          <i data-lucide="bookmark" class="w-4 h-4 text-amber-500"></i>
+        </div>
+        <div class="text-2xl font-black text-amber-600" id="kpi-sc-count">--</div>
+        <div class="text-xs text-amber-600 font-medium mt-1" id="kpi-sc-pct">SC (5.75 - 6.74)</div>
+      </div>
+
+      <!-- Failures / Backlogs -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-medium uppercase tracking-wider text-rose-600">Failures</span>
+          <i data-lucide="alert-octagon" class="w-4 h-4 text-rose-500"></i>
+        </div>
+        <div class="text-2xl font-black text-rose-600" id="kpi-fail-count">--</div>
+        <div class="text-xs text-rose-600 font-medium mt-1" id="kpi-fail-pct">Backlog students</div>
+      </div>
+
+    </div>
+
+    <!-- Section 1: Department Top 10 Toppers Leaderboard & Visual Podium -->
+    <div id="section-toppers" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6 scroll-mt-20">
+      
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+        <div>
+          <div class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-600 uppercase tracking-wider mb-1">
+            <i data-lucide="trophy" class="w-4 h-4"></i>
+            <span>Department Excellence</span>
+          </div>
+          <h3 class="text-xl font-bold text-slate-900">Top 10 Department Toppers</h3>
+          <p class="text-xs text-slate-500">Ranked by VTU SGPA, Total Marks, and zero backlogs</p>
+        </div>
+        
+        <div class="flex items-center gap-3">
+          <div class="bg-emerald-50 text-emerald-800 px-3 py-1.5 rounded-lg border border-emerald-200 text-xs font-semibold flex items-center gap-1.5">
+            <i data-lucide="trending-up" class="w-4 h-4 text-emerald-600"></i>
+            <span id="kpi-highest-sgpa">Top SGPA: --</span>
+          </div>
+          <div class="bg-indigo-50 text-indigo-800 px-3 py-1.5 rounded-lg border border-indigo-200 text-xs font-semibold">
+            Avg SGPA: <span id="kpi-avg-sgpa">--</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visual Podium for Top 3 -->
+      <div class="podium-container py-4 flex flex-col md:flex-row items-end justify-center gap-4 max-w-4xl mx-auto">
+        
+        <!-- Rank 2: Silver (Left) -->
+        <div class="order-2 md:order-1 flex-1 w-full text-center">
+          <div id="podium-card-r2" class="podium-step bg-gradient-to-b from-slate-100 to-slate-200 p-5 rounded-2xl border-2 border-slate-300 relative shadow-sm">
+            <div class="w-12 h-12 mx-auto -mt-10 mb-2 rounded-full bg-slate-200 border-2 border-slate-400 flex items-center justify-center text-xl shadow-md">
+              🥈
+            </div>
+            <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-300 text-slate-800 uppercase tracking-wider mb-1">Rank 2 (Silver)</span>
+            <h4 class="font-extrabold text-slate-900 text-base" id="podium-r2-name">--</h4>
+            <div class="font-mono text-xs font-semibold text-indigo-700" id="podium-r2-usn">--</div>
+            <div class="mt-2 text-xl font-black text-slate-800" id="podium-r2-sgpa">-- SGPA</div>
+            <div class="text-xs text-slate-600 font-medium" id="podium-r2-marks">-- / --</div>
+          </div>
+        </div>
+
+        <!-- Rank 1: Gold (Center - Elevated) -->
+        <div class="order-1 md:order-2 flex-1 w-full text-center">
+          <div id="podium-card-r1" class="podium-step bg-gradient-to-b from-amber-50 to-amber-100/80 p-6 rounded-2xl border-2 border-amber-300 relative shadow-md">
+            <div class="w-14 h-14 mx-auto -mt-12 mb-2 rounded-full bg-amber-400 border-2 border-amber-500 flex items-center justify-center text-2xl shadow-lg ring-4 ring-amber-200">
+              🥇
+            </div>
+            <span class="inline-block px-3 py-0.5 rounded-full text-xs font-black bg-amber-200 text-amber-900 uppercase tracking-wider mb-1">Rank 1 (Department Gold)</span>
+            <h4 class="font-black text-slate-900 text-lg" id="podium-r1-name">--</h4>
+            <div class="font-mono text-xs font-bold text-indigo-800" id="podium-r1-usn">--</div>
+            <div class="mt-2 text-2xl font-black text-amber-700" id="podium-r1-sgpa">-- SGPA</div>
+            <div class="text-xs text-slate-700 font-semibold" id="podium-r1-marks">-- / --</div>
+          </div>
+        </div>
+
+        <!-- Rank 3: Bronze (Right) -->
+        <div class="order-3 md:order-3 flex-1 w-full text-center">
+          <div id="podium-card-r3" class="podium-step bg-gradient-to-b from-orange-50 to-orange-100/60 p-5 rounded-2xl border-2 border-amber-600/30 relative shadow-sm">
+            <div class="w-12 h-12 mx-auto -mt-10 mb-2 rounded-full bg-amber-700/20 border-2 border-amber-600 flex items-center justify-center text-xl shadow-md">
+              🥉
+            </div>
+            <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-orange-200 text-orange-900 uppercase tracking-wider mb-1">Rank 3 (Bronze)</span>
+            <h4 class="font-extrabold text-slate-900 text-base" id="podium-r3-name">--</h4>
+            <div class="font-mono text-xs font-semibold text-indigo-700" id="podium-r3-usn">--</div>
+            <div class="mt-2 text-xl font-black text-slate-800" id="podium-r3-sgpa">-- SGPA</div>
+            <div class="text-xs text-slate-600 font-medium" id="podium-r3-marks">-- / --</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Top 10 Table -->
+      <div class="overflow-x-auto rounded-xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50 text-slate-600 font-semibold text-xs uppercase tracking-wider">
+            <tr>
+              <th scope="col" class="px-4 py-3 text-left">Rank</th>
+              <th scope="col" class="px-4 py-3 text-left">USN</th>
+              <th scope="col" class="px-4 py-3 text-left">Student Name</th>
+              <th scope="col" class="px-4 py-3 text-right">SGPA</th>
+              <th scope="col" class="px-4 py-3 text-right">Percentage</th>
+              <th scope="col" class="px-4 py-3 text-right">Marks (Total)</th>
+              <th scope="col" class="px-4 py-3 text-left">Awarded Class</th>
+              <th scope="col" class="px-4 py-3 text-center">Action</th>
+            </tr>
+          </thead>
+          <tbody id="toppers-tbody" class="bg-white divide-y divide-slate-100">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- Section 2: Visual Charts & Analytics Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      
+      <!-- Chart 1: Class Distribution -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div>
+          <h3 class="text-base font-bold text-slate-900 mb-1 flex items-center gap-2">
+            <i data-lucide="pie-chart" class="w-4 h-4 text-indigo-600"></i>
+            Class Distribution Breakdown
+          </h3>
+          <p class="text-xs text-slate-500 mb-4">Distinction (FCD) vs First Class vs Second Class vs Failures</p>
+        </div>
+        <div class="relative h-64 w-full">
+          <canvas id="chart-class-distribution"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 2: Subject-wise Pass Percentage -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div>
+          <h3 class="text-base font-bold text-slate-900 mb-1 flex items-center gap-2">
+            <i data-lucide="bar-chart-3" class="w-4 h-4 text-indigo-600"></i>
+            Subject-wise Pass vs Fail Rates
+          </h3>
+          <p class="text-xs text-slate-500 mb-4">Percentage of students clearing each theory & lab subject</p>
+        </div>
+        <div class="relative h-64 w-full">
+          <canvas id="chart-subjects-pass"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Section 3: Subject-wise Deep Performance Matrix -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+            <i data-lucide="book-open" class="w-4 h-4 text-indigo-600"></i>
+            Department Subject-wise Marks Analysis
+          </h3>
+          <p class="text-xs text-slate-500">Internal (CIE), External (SEE) averages, and failure hotspots</p>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto rounded-xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50 text-slate-600 font-semibold text-xs uppercase tracking-wider">
+            <tr>
+              <th class="px-4 py-3 text-left">Code</th>
+              <th class="px-4 py-3 text-left">Subject Title</th>
+              <th class="px-4 py-3 text-center">Credits</th>
+              <th class="px-4 py-3 text-center">Passed</th>
+              <th class="px-4 py-3 text-center">Failed</th>
+              <th class="px-4 py-3 text-left w-48">Pass %</th>
+              <th class="px-4 py-3 text-right">Avg CIE</th>
+              <th class="px-4 py-3 text-right">Avg SEE</th>
+              <th class="px-4 py-3 text-right">Avg Total</th>
+            </tr>
+          </thead>
+          <tbody id="subject-tbody" class="bg-white divide-y divide-slate-100">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Section 4: Failure & Remedial Action Center -->
+    <div class="bg-white rounded-2xl border border-rose-200 shadow-sm p-6 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-rose-100 pb-4">
+        <div>
+          <div class="inline-flex items-center gap-1.5 text-xs font-bold text-rose-600 uppercase tracking-wider mb-1">
+            <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+            <span>Department Remedial Monitoring</span>
+          </div>
+          <h3 class="text-lg font-bold text-slate-900">Failure & Backlog Diagnostics</h3>
+          <p class="text-xs text-slate-500">Identify students requiring remedial coaching, re-examinations, or CIE improvements</p>
+        </div>
+        <span id="backlog-student-count" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800">
+          -- Students
+        </span>
+      </div>
+
+      <!-- Backlog Cards Container -->
+      <div id="backlog-cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Dynamically rendered backlog cards -->
+      </div>
+    </div>
+
+    <!-- Section 5: Master Student Directory with Dynamic Tabs -->
+    <div id="section-student-directory" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4 scroll-mt-20">
+      
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <h3 class="text-lg font-bold text-slate-900">Complete Department Student Directory</h3>
+          <p class="text-xs text-slate-500">Filter students by VTU classification, search by USN, or view individual marks sheets</p>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="relative w-full lg:w-72">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <input 
+            type="text" 
+            id="search-input" 
+            placeholder="Search USN or Name..." 
+            class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+          >
+        </div>
+      </div>
+
+      <!-- Filter Tabs -->
+      <div class="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2 text-xs font-semibold">
+        <button data-filter="all" class="filter-tab-btn active-tab px-3 py-2 border-b-2 border-indigo-600 text-indigo-600 hover:text-indigo-800 transition-colors">
+          All Students
+        </button>
+        <button data-filter="toppers" class="filter-tab-btn px-3 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-colors">
+          Top 10 Toppers
+        </button>
+        <button data-filter="fcd" class="filter-tab-btn px-3 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-colors">
+          Distinction (FCD)
+        </button>
+        <button data-filter="fc" class="filter-tab-btn px-3 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-colors">
+          First Class (FC)
+        </button>
+        <button data-filter="sc" class="filter-tab-btn px-3 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-colors">
+          Second Class (SC)
+        </button>
+        <button data-filter="fail" class="filter-tab-btn px-3 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-colors">
+          Failures / Backlogs
+        </button>
+        <span id="table-count-badge" class="ml-auto text-slate-400 font-normal">Showing -- students</span>
+      </div>
+
+      <!-- Master Table -->
+      <div class="overflow-x-auto rounded-xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50 text-slate-600 font-semibold text-xs uppercase tracking-wider">
+            <tr>
+              <th scope="col" class="px-4 py-3 text-left">Rank</th>
+              <th scope="col" class="px-4 py-3 text-left">USN</th>
+              <th scope="col" class="px-4 py-3 text-left">Student Name</th>
+              <th scope="col" class="px-4 py-3 text-right">SGPA</th>
+              <th scope="col" class="px-4 py-3 text-right">Percentage</th>
+              <th scope="col" class="px-4 py-3 text-right">Total Marks</th>
+              <th scope="col" class="px-4 py-3 text-left">Class Awarded</th>
+              <th scope="col" class="px-4 py-3 text-left">Backlog Status</th>
+            </tr>
+          </thead>
+          <tbody id="students-tbody" class="bg-white divide-y divide-slate-100">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+
+
+    <!-- Printable Official Report Sign-off Block (Visible on print) -->
+    <div class="hidden print-only pt-12 mt-12 border-t-2 border-slate-400">
+      <div class="grid grid-cols-3 text-center text-xs font-bold text-slate-800">
+        <div>
+          <div class="h-16"></div>
+          <p class="border-t border-slate-600 pt-1">Prepared by / Class Coordinator</p>
+        </div>
+        <div>
+          <div class="h-16"></div>
+          <p class="border-t border-slate-600 pt-1">Head of the Department (HOD)</p>
+        </div>
+        <div>
+          <div class="h-16"></div>
+          <p class="border-t border-slate-600 pt-1">Principal / Controller of Examinations</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ADD / ANALYZE STUDENT MODAL (Allows direct entry, file upload, or text paste) -->
+  <div id="add-student-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
+      
+      <!-- Modal Header -->
+      <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-5 text-white flex items-center justify-between">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 uppercase tracking-wider">
+              Student Analysis Engine
+            </span>
+          </div>
+          <h3 class="text-xl font-bold text-white tracking-tight">Add / Upload Student Result</h3>
+          <p class="text-xs text-indigo-300">Analyze marks and place student in the Department Toppers list</p>
+        </div>
+        <button onclick="closeAddStudentModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition">
+          ✕
+        </button>
+      </div>
+
+      <!-- Navigation Sub-tabs -->
+      <div class="bg-slate-100 border-b border-slate-200 px-6 pt-3 flex gap-4 text-xs font-bold">
+        <button id="tab-btn-form" onclick="switchAddTab('form')" class="pb-2.5 border-b-2 border-indigo-600 text-indigo-600">
+          1. Enter Marks Form
+        </button>
+        <button id="tab-btn-paste" onclick="switchAddTab('paste')" class="pb-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800">
+          2. Paste VTU Result Text
+        </button>
+        <button id="tab-btn-upload" onclick="switchAddTab('upload')" class="pb-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800">
+          3. Upload File (CSV / Excel)
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-6 overflow-y-auto space-y-5">
+        
+        <!-- Tab 1: Enter Marks Form -->
+        <div id="add-tab-form" class="space-y-4">
+          
+          <!-- Student Identifiers -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">University Seat Number (USN) *</label>
+              <input type="text" id="manual-usn" placeholder="e.g. 1MS21CS099" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-bold uppercase focus:ring-2 focus:ring-indigo-500 focus:bg-white">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Student Full Name *</label>
+              <input type="text" id="manual-name" placeholder="e.g. Vikram Malhotra" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:bg-white">
+            </div>
+          </div>
+
+          <!-- Quick Presets for Instant Testing -->
+          <div class="bg-indigo-50/70 p-3 rounded-xl border border-indigo-100 flex flex-wrap items-center justify-between gap-2">
+            <span class="text-xs font-bold text-indigo-900 flex items-center gap-1">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-600"></i>
+              Test Presets:
+            </span>
+            <div class="flex flex-wrap gap-1.5">
+              <button type="button" onclick="applyPresetMarks('topper')" class="px-2.5 py-1 rounded-md bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[11px] font-bold shadow-2xs transition">
+                🥇 Rank 1 Topper (9.75 SGPA)
+              </button>
+              <button type="button" onclick="applyPresetMarks('fcd')" class="px-2.5 py-1 rounded-md bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[11px] font-bold shadow-2xs transition">
+                🌟 Distinction (8.40 SGPA)
+              </button>
+              <button type="button" onclick="applyPresetMarks('fc')" class="px-2.5 py-1 rounded-md bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[11px] font-bold shadow-2xs transition">
+                📘 First Class (7.10 SGPA)
+              </button>
+              <button type="button" onclick="applyPresetMarks('fail')" class="px-2.5 py-1 rounded-md bg-white border border-rose-200 text-rose-700 hover:bg-rose-600 hover:text-white text-[11px] font-bold shadow-2xs transition">
+                ⚠️ Backlog (Fail in 1 Sub)
+              </button>
+            </div>
+          </div>
+
+          <!-- Subject Marks Grid -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="block text-xs font-bold text-slate-800">Subject Marks (CIE & SEE)</label>
+              <span class="text-[11px] text-slate-500">Passing: CIE ≥ 20/50, SEE ≥ 18/50</span>
+            </div>
+            <div id="manual-subjects-container" class="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+              <!-- Dynamically populated from current dataset subjects -->
+            </div>
+          </div>
+
+          <!-- Live Score Preview Card -->
+          <div class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-3.5 rounded-xl flex items-center justify-between">
+            <div>
+              <span class="text-[11px] uppercase tracking-wider text-indigo-300 font-bold">Estimated Live Performance</span>
+              <div class="flex items-baseline gap-2 mt-0.5">
+                <span class="text-xl font-black text-emerald-400" id="preview-sgpa">-- SGPA</span>
+                <span class="text-xs text-slate-300" id="preview-pct">(--%)</span>
+                <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-white/10" id="preview-class">--</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-[11px] text-amber-300 font-bold block">Projected Dept Rank</span>
+              <span class="text-lg font-black text-amber-400" id="preview-rank">#--</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Tab 2: Paste VTU Result Text -->
+        <div id="add-tab-paste" class="hidden space-y-4">
+          <p class="text-xs text-slate-600">
+            Open your result page on <b>results.vtu.ac.in</b>, select and copy the text (or table), and paste it below. The system automatically reads the USN, name, and subject scores.
+          </p>
+          <textarea 
+            id="modal-paste-input" 
+            rows="8" 
+            placeholder="Paste your VTU result text here...&#10;&#10;Example:&#10;University Seat Number : 1MS21CS099&#10;Student Name : Vikram Malhotra&#10;21CS71 Artificial Intelligence & Machine Learning 49 48 97 P&#10;21CS72 Big Data Analytics 48 49 97 P..."
+            class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+          ></textarea>
+        </div>
+
+        <!-- Tab 3: Upload File -->
+        <div id="add-tab-upload" class="hidden space-y-4">
+          <div class="p-8 border-2 border-dashed border-indigo-300 rounded-2xl bg-indigo-50/50 text-center hover:bg-indigo-50 transition-colors">
+            <i data-lucide="file-up" class="w-10 h-10 text-indigo-600 mx-auto mb-2"></i>
+            <h4 class="font-bold text-slate-900 text-sm">Upload Student Result File</h4>
+            <p class="text-xs text-slate-500 mb-4">Accepts Excel (<code>.xlsx</code>, <code>.xls</code>), CSV (<code>.csv</code>), or plain text (<code>.txt</code>)</p>
+            
+            <label for="modal-file-input" class="cursor-pointer inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition">
+              <i data-lucide="folder-open" class="w-4 h-4"></i>
+              <span>Select File from Computer</span>
+            </label>
+            <input type="file" id="modal-file-input" accept=".csv, .xlsx, .xls, .txt" class="hidden" onchange="handleModalFileUpload(event)">
+            <p class="text-[11px] text-slate-400 mt-2" id="modal-file-selected-name">No file selected yet</p>
+          </div>
+
+          <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+            <span class="font-bold text-slate-700 block mb-1">Import Mode:</span>
+            <div class="flex items-center gap-4">
+              <label class="flex items-center gap-1.5 cursor-pointer font-medium text-slate-800">
+                <input type="radio" name="modal-upload-mode" value="merge" checked class="text-indigo-600">
+                <span>Add / Merge Student into Department (Compare Rank)</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer font-medium text-slate-800">
+                <input type="radio" name="modal-upload-mode" value="replace" class="text-indigo-600">
+                <span>Replace Current Department</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="bg-slate-50 px-6 py-4 border-t border-slate-200 flex items-center justify-between">
+        <button onclick="closeAddStudentModal()" class="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold text-xs transition">
+          Cancel
+        </button>
+        <button id="btn-submit-student" onclick="submitAddStudent()" class="px-6 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md hover:shadow-lg transition flex items-center gap-2">
+          <i data-lucide="check" class="w-4 h-4"></i>
+          <span>Analyze & Place in Toppers List</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Student Marks Card Modal -->
+  <div id="student-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+      
+      <!-- Modal Header -->
+      <div class="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 text-white flex items-center justify-between">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 uppercase tracking-wider" id="modal-student-rank">#1</span>
+            <span class="text-xs text-indigo-300 font-semibold" id="modal-student-class">First Class with Distinction</span>
+          </div>
+          <h3 class="text-xl font-bold text-white tracking-tight" id="modal-student-name">Student Name</h3>
+          <p class="font-mono text-sm font-semibold text-indigo-300" id="modal-student-usn">1MS21CS001</p>
+        </div>
+        <button onclick="closeStudentModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition">
+          ✕
+        </button>
+      </div>
+
+      <!-- Modal Body (Detailed Marks Ledger) -->
+      <div class="p-6 overflow-y-auto space-y-4">
+        
+        <!-- Summary Stats -->
+        <div class="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+          <div>
+            <span class="text-xs text-slate-500 font-medium">SGPA</span>
+            <div class="text-xl font-black text-indigo-700" id="modal-student-sgpa">--</div>
+          </div>
+          <div>
+            <span class="text-xs text-slate-500 font-medium">Percentage</span>
+            <div class="text-xl font-black text-slate-800" id="modal-student-pct">--%</div>
+          </div>
+          <div>
+            <span class="text-xs text-slate-500 font-medium">Total Marks</span>
+            <div class="text-xl font-black text-slate-800" id="modal-student-marks">-- / --</div>
+          </div>
+        </div>
+
+        <!-- Subject Table -->
+        <div class="overflow-x-auto rounded-xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-xs">
+            <thead class="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider">
+              <tr>
+                <th class="px-4 py-2.5 text-left">Code</th>
+                <th class="px-4 py-2.5 text-left">Subject</th>
+                <th class="px-4 py-2.5 text-center">Credits</th>
+                <th class="px-4 py-2.5 text-center">CIE (50)</th>
+                <th class="px-4 py-2.5 text-center">SEE (50)</th>
+                <th class="px-4 py-2.5 text-center">Total (100)</th>
+                <th class="px-4 py-2.5 text-center">Grade</th>
+                <th class="px-4 py-2.5 text-center">Points</th>
+                <th class="px-4 py-2.5 text-center">Result</th>
+              </tr>
+            </thead>
+            <tbody id="modal-marks-tbody" class="bg-white divide-y divide-slate-100">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="bg-slate-50 px-6 py-3 border-t border-slate-200 flex justify-end">
+        <button onclick="closeStudentModal()" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold text-xs transition">
+          Close
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500 no-print mt-auto">
+    <p class="font-medium text-slate-600">VTU Department Performance & Result Sheet Analysis System</p>
+    <p class="text-[11px] mt-1 text-slate-400">Supports VTU CBCS Schemes (2018, 2021, 2022) with automatic SGPA calculation, department ranking, and backlog tracking.</p>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="sample-data.js"></script>
+  <script src="app.js"></script>
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+  </script>
+</body>
+</html>
